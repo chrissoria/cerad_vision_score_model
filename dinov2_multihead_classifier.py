@@ -478,9 +478,9 @@ def train_model(
         weight_decay=weight_decay,
     )
     
-    total_steps = len(train_loader) * num_epochs
+    # Scheduler steps once per epoch, so T_max = num_epochs
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=total_steps, eta_min=learning_rate * 0.01
+        optimizer, T_max=num_epochs, eta_min=learning_rate * 0.01
     )
     
     early_stopping = EarlyStopping(patience=patience)
@@ -907,8 +907,12 @@ def run_lpft_training(
         print(f"  {dim}: {dict(counts)}")
     
     # Data loaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    # DataLoader settings (adjust for platform)
+    num_workers = 0 if device.type == "mps" else 4  # multiprocessing can hang on Mac
+    pin_memory = device.type == "cuda"  # pin_memory only helps for CUDA
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     
     # =========================================================================
     # STAGE 1: Linear Probing
