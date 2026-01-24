@@ -1,45 +1,38 @@
-# DINOv2 Image Classifier with LP-FT Strategy
+# DINOv2 Multi-Head Classifier for Circle Drawing Analysis
 
-A production-ready image classification pipeline optimized for **small datasets (~100 labeled examples)**, implementing the state-of-the-art LP-FT (Linear Probe then Fine-Tune) strategy with DINOv2 and LoRA.
+A multi-label image classification pipeline for evaluating drawings along **3 separate dimensions** simultaneously, using a shared DINOv2 backbone with multiple classification heads.
 
 ## 🎯 What This Does
 
-This script implements the research-backed optimal approach for fine-tuning vision models with limited data:
+Classifies images of circle drawings along three dimensions:
 
-1. **Stage 1 - Linear Probing**: Freezes the DINOv2 backbone and trains only a classification head
-2. **Stage 2 - LoRA Fine-Tuning**: Applies parameter-efficient LoRA adapters to the backbone
+| Dimension | Categories | Question |
+|-----------|------------|----------|
+| **Presence** | `circle_clear`, `circle_resembles`, `no_circle` | Is there a circle? |
+| **Closure** | `closed`, `almost_closed`, `na` | Is it closed? |
+| **Circularity** | `circular`, `almost_circular`, `na` | Is it round? |
 
-This two-stage approach consistently outperforms full fine-tuning by 5-10% when data is scarce.
+**Architecture:** 1 model (~350 MB) with 3 classification heads sharing a DINOv2 backbone.
 
-## 📁 Data Organization
+## 📦 Files Overview
 
-Organize your images into the following folder structure:
+| File | Purpose |
+|------|---------|
+| `dinov2_multihead_classifier.py` | **Training script** — train your own model |
+| `circle_classifier.py` | **Inference module** — for catllm integration |
+| `check_training_setup.py` | **Setup checker** — verify your machine can train |
+| `example_labels.csv` | **Template** — for your training labels |
+| `requirements.txt` | **Dependencies** |
 
-```
-data/
-├── train/
-│   ├── category_1/
-│   │   ├── image001.jpg
-│   │   ├── image002.jpg
-│   │   └── ...
-│   ├── category_2/
-│   │   ├── image001.jpg
-│   │   └── ...
-│   └── category_N/
-│       └── ...
-└── val/
-    ├── category_1/
-    │   └── ...
-    ├── category_2/
-    │   └── ...
-    └── category_N/
-        └── ...
-```
+## 🖥️ Platform Support
 
-**Tips for splitting your ~100 images:**
-- Use approximately 80% for training, 20% for validation
-- Ensure each category has at least 2-3 validation images
-- Keep the class distribution balanced if possible
+Works on all platforms with automatic GPU detection:
+
+| Platform | GPU Used | Performance |
+|----------|----------|-------------|
+| Windows/Linux + NVIDIA | CUDA | Fast |
+| Mac M1/M2/M3/M4 | MPS (Metal) | Fast |
+| Mac Intel / No GPU | CPU | Slower |
 
 ## 🚀 Quick Start
 
@@ -49,177 +42,221 @@ data/
 pip install -r requirements.txt
 ```
 
-If you're using a GPU (recommended), ensure you have CUDA installed and install PyTorch with CUDA support:
+### 2. Check Your Setup (Optional)
 
 ```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+python check_training_setup.py
 ```
 
-### 2. Train Your Model
+### 3. Prepare Your Data
+
+**Images:** Put all images in one folder (`./images/`)
+
+**Labels CSV:** Create `labels.csv` with this format:
+
+```csv
+image,presence,closure,circularity
+drawing001.jpg,circle_clear,closed,circular
+drawing002.jpg,circle_clear,almost_closed,almost_circular
+drawing003.jpg,circle_resembles,almost_closed,circular
+drawing004.jpg,no_circle,,
+```
+
+> Leave `closure` and `circularity` empty when `presence` is `no_circle`
+
+### 4. Train
 
 ```bash
-python dinov2_classifier.py \
+python dinov2_multihead_classifier.py \
     --mode train \
-    --data_dir ./data \
-    --num_classes 5 \
-    --save_dir ./checkpoints
+    --image_dir ./images \
+    --labels_csv ./labels.csv \
+    --save_dir ./checkpoints \
+    --batch_size 8
 ```
 
-### 3. Run Inference
+### 5. Upload to HuggingFace (Optional)
 
-**Single image:**
-```bash
-python dinov2_classifier.py \
-    --mode inference \
-    --model_path ./checkpoints/final_model.pt \
-    --image_path ./test_image.jpg
+```python
+from circle_classifier import upload_model_to_hub
+
+upload_model_to_hub(
+    model_path="./checkpoints/final_model.pt",
+    repo_id="your-username/circle-classifier",
+    token="hf_..."  # or run `huggingface-cli login` first
+)
 ```
 
-**Batch inference (entire directory):**
-```bash
-python dinov2_classifier.py \
-    --mode inference \
-    --model_path ./checkpoints/final_model.pt \
-    --image_dir ./test_images/
+## 💻 Using the Trained Model
+
+### Option A: Local Inference (Default)
+
+Downloads model (~350 MB, cached) and runs on your machine:
+
+```python
+from catllm.circle_classifier import classify_circles
+
+# Auto-downloads from HuggingFace on first run
+results = classify_circles(images="./test_images")
+
+# Or use your local model
+results = classify_circles(
+    images="./test_images",
+    model="./checkpoints/final_model.pt"
+)
 ```
 
-## ⚙️ Configuration Options
+### Option B: Cloud Inference (HuggingFace API)
+
+No download needed—runs on HuggingFace servers:
+
+```python
+results = classify_circles(
+    images="./test_images",
+    use_api=True,
+    hf_token="hf_..."  # or set HF_TOKEN env var
+)
+```
+
+### Output Formats
+
+**DataFrame (default):**
+
+```python
+results = classify_circles(images="./test_images")
+results.to_csv("predictions.csv", index=False)
+```
+
+```
+image          | presence_clear | presence_resembles | presence_none | presence_pred | closure_closed | ...
+drawing001.jpg | 0.85           | 0.10               | 0.05          | circle_clear  | 0.90           | ...
+```
+
+**JSON:**
+
+```python
+results = classify_circles(
+    images="./test_images",
+    output_format="json",
+    output_path="predictions.json"
+)
+```
+
+```json
+[
+  {
+    "image": "drawing001.jpg",
+    "presence": {"clear": 0.85, "resembles": 0.10, "none": 0.05, "prediction": "circle_clear"},
+    "closure": {"closed": 0.90, "almost": 0.08, "na": 0.02, "prediction": "closed"},
+    "circularity": {"circular": 0.75, "almost": 0.21, "na": 0.04, "prediction": "circular"}
+  }
+]
+```
+
+## ⚙️ Configuration
 
 ### Training Arguments
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--data_dir` | (required) | Path to data directory with train/val subdirs |
-| `--num_classes` | (required) | Number of classification categories |
-| `--save_dir` | `./checkpoints` | Directory to save model checkpoints |
-| `--batch_size` | `16` | Training batch size |
-| `--lp_epochs` | `30` | Number of epochs for linear probing stage |
-| `--ft_epochs` | `20` | Number of epochs for LoRA fine-tuning stage |
-| `--seed` | `42` | Random seed for reproducibility |
+| `--image_dir` | (required) | Directory containing images |
+| `--labels_csv` | (required) | Path to labels CSV |
+| `--save_dir` | `./checkpoints` | Where to save model |
+| `--batch_size` | `16` | Reduce to 8 or 4 if memory issues |
+| `--val_split` | `0.2` | Validation fraction |
+| `--lp_epochs` | `30` | Linear probe epochs |
+| `--ft_epochs` | `20` | LoRA fine-tuning epochs |
+| `--seed` | `42` | Random seed |
 
-### Inference Arguments
+### Inference Parameters
 
-| Argument | Description |
-|----------|-------------|
-| `--model_path` | Path to trained model checkpoint |
-| `--image_path` | Path to single image for prediction |
-| `--image_dir` | Path to directory for batch predictions |
-| `--no_tta` | Disable test-time augmentation (faster but slightly less accurate) |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `images` | (required) | Directory, file, or list of paths |
+| `model` | `"chrissoria/circle-classifier"` | HuggingFace ID or local path |
+| `output_format` | `"dataframe"` | `"dataframe"` or `"json"` |
+| `output_path` | `None` | Auto-save results |
+| `use_tta` | `True` | Test-time augmentation |
+| `device` | `None` (auto) | `"cuda"`, `"mps"`, `"cpu"` |
+| `use_api` | `False` | Use HuggingFace cloud API |
+| `hf_token` | `None` | Token for cloud API |
+| `silent` | `False` | Suppress messages |
 
-## 📊 Expected Output
-
-### Training Output
-
-```
-============================================================
-STAGE 1: LINEAR PROBING (Frozen Backbone)
-============================================================
-Trainable parameters: 3,845 / 86,567,429 (0.00%)
-
-Epoch 1/30
-Training: 100%|████████| 6/6 [00:05<00:00, loss: 1.2345, acc: 45.00%]
-Validation: 100%|████████| 2/2 [00:01<00:00]
-Train Loss: 1.2345, Train Acc: 45.00%
-Val Loss: 1.1234, Val Acc: 52.00%
-✓ Saved best model (val_acc: 52.00%)
-...
-
-============================================================
-STAGE 2: LoRA FINE-TUNING
-============================================================
-Trainable parameters: 297,733 / 86,567,429 (0.34%)
-...
-
-Best validation accuracy: 87.50%
-Final model saved to: ./checkpoints/final_model.pt
-```
-
-### Inference Output
+## 🏗️ Architecture
 
 ```
-Prediction: category_2
-Confidence: 94.32%
-
-All probabilities:
-  category_2: 94.32%
-  category_1: 3.21%
-  category_3: 1.89%
-  category_4: 0.45%
-  category_5: 0.13%
+┌─────────────────────────────────────────┐
+│           SINGLE .pt FILE (~350 MB)     │
+│                                         │
+│  ┌─────────────────────────────────┐   │
+│  │   DINOv2 ViT-B/14 Backbone      │   │
+│  │   (shared feature extractor)    │   │
+│  └──────────────┬──────────────────┘   │
+│                 │                       │
+│      ┌──────────┼──────────┐           │
+│      ▼          ▼          ▼           │
+│  ┌───────┐ ┌────────┐ ┌───────────┐   │
+│  │Head 1 │ │Head 2  │ │Head 3     │   │
+│  └───────┘ └────────┘ └───────────┘   │
+│  presence   closure   circularity      │
+└─────────────────────────────────────────┘
 ```
 
-## 🔧 Advanced Customization
+## 📈 Training Strategy (LP-FT)
 
-### Adjusting Hyperparameters
+1. **Stage 1 - Linear Probing** (30 epochs)
+   - Freeze DINOv2 backbone
+   - Train only classification heads
+   - ~0.01% parameters trainable
 
-For even smaller datasets (<50 examples), you may want to modify these settings in the script:
+2. **Stage 2 - LoRA Fine-Tuning** (20 epochs)
+   - Add LoRA adapters to backbone
+   - Train LoRA + heads
+   - ~0.3% parameters trainable
+
+## ⚡ Local vs Cloud Mode
+
+| Feature | Local Mode | Cloud Mode (`use_api=True`) |
+|---------|------------|----------------------------|
+| First run | Downloads ~350MB | No download |
+| Subsequent runs | Uses cache | Sends to API |
+| GPU required | Recommended | No |
+| Works offline | Yes | No |
+| HF token needed | No | Yes |
+
+## 🔧 Working with Results
 
 ```python
-# In run_lpft_training():
-lp_epochs=50,           # More epochs for linear probe
-ft_epochs=10,           # Fewer epochs for fine-tuning (less overfitting risk)
-lora_r=4,               # Lower rank (fewer parameters)
-dropout=0.6,            # Higher dropout
+# Flag uncertain predictions
+uncertain = results[results["presence_clear"] < 0.7]
+print(f"{len(uncertain)} images need review")
+
+# Custom threshold
+results["strict_pred"] = results.apply(
+    lambda r: "circle_clear" if r["presence_clear"] > 0.8 else "uncertain",
+    axis=1
+)
 ```
-
-### Programmatic Usage
-
-```python
-from dinov2_classifier import (
-    run_lpft_training,
-    load_trained_model,
-    predict_single,
-)
-import torch
-
-# Train
-model, history = run_lpft_training(
-    data_dir="./data",
-    num_classes=5,
-    save_dir="./checkpoints",
-)
-
-# Load and predict
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model, class_names = load_trained_model("./checkpoints/final_model.pt", device)
-
-predicted_class, confidence, all_probs = predict_single(
-    model=model,
-    image_path="./test.jpg",
-    device=device,
-    class_names=class_names,
-    use_tta=True,
-)
-
-print(f"Predicted: {predicted_class} ({confidence:.2%})")
-```
-
-## 📈 Tips for Best Results
-
-1. **Balance your classes**: Try to have roughly equal numbers of images per category
-2. **Quality over quantity**: A few high-quality, representative images beat many similar ones
-3. **Validation set matters**: Include diverse examples in validation to catch overfitting
-4. **Check confusion matrix**: After training, analyze which categories are confused
-5. **Test-time augmentation**: Keep TTA enabled (default) for 1-3% accuracy boost
 
 ## 🐛 Troubleshooting
 
-**CUDA out of memory:**
-- Reduce `--batch_size` to 8 or 4
-- The script automatically handles gradient accumulation
+**"MPS not available" on Mac:**
+```bash
+pip install --upgrade torch torchvision
+```
 
-**Poor validation accuracy:**
-- Ensure validation images are representative
-- Check for label errors in your data
-- Try increasing `--lp_epochs`
+**Out of memory:**
+```bash
+--batch_size 4  # Reduce batch size
+```
 
-**Training loss not decreasing:**
-- Verify your data folder structure is correct
-- Check that images are readable (not corrupted)
+**Slow training (using CPU):**
+```bash
+python check_training_setup.py  # Verify GPU detection
+```
 
 ## 📚 References
 
-This implementation is based on:
-- [DINOv2: Learning Robust Visual Features without Supervision](https://arxiv.org/abs/2304.07193)
-- [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
-- [LP-FT: Linear Probing then Fine-Tuning](https://arxiv.org/abs/2202.10054)
+- [DINOv2: Learning Robust Visual Features](https://arxiv.org/abs/2304.07193)
+- [LoRA: Low-Rank Adaptation](https://arxiv.org/abs/2106.09685)
+- [LP-FT Strategy](https://arxiv.org/abs/2202.10054)
