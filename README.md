@@ -1,30 +1,102 @@
-# DINOv2 Multi-Head Classifier for Circle Drawing Analysis
+# PraxisNet
 
-A multi-label image classification pipeline for evaluating drawings along **3 separate dimensions** simultaneously, using a shared DINOv2 backbone with multiple classification heads.
+A multi-label image classification model family for scoring CERAD (Consortium to Establish a Registry for Alzheimer's Disease) constructional praxis drawings. Built on a DINOv2 ViT-B/14 backbone with task-specific classification heads.
 
-## 🎯 What This Does
+**Current Release:** CircleScore_v1.0
 
-Classifies images of circle drawings along three dimensions:
+## What This Does
+
+The CERAD constructional praxis test asks participants to copy four geometric figures:
+- **Circle**
+- **Diamond**
+- **Overlapping Rectangles**
+- **Cube**
+
+This model classifies photographs of these drawings, handling real-world conditions (varied lighting, backgrounds, hands in frame, multiple objects, etc.).
+
+### CircleScore_v1.0
+
+Classifies circle drawings along three dimensions:
 
 | Dimension | Categories | Question |
 |-----------|------------|----------|
-| **Presence** | `circle_clear`, `circle_resembles`, `no_circle` | Is there a circle? |
-| **Closure** | `closed`, `almost_closed`, `na` | Is it closed? |
-| **Circularity** | `circular`, `almost_circular`, `na` | Is it round? |
+| **Presence** | `circle`, `no_circle` | Is there a circle? |
+| **Closure** | `closed`, `not_closed`, `na` | Is it closed? |
+| **Circularity** | `circular`, `not_circular`, `na` | Is it round? |
 
-**Architecture:** 1 model (~350 MB) with 3 classification heads sharing a DINOv2 backbone.
+**Architecture:** Single model (~330 MB) with 3 classification heads sharing a DINOv2 ViT-B/14 backbone.
 
-## 📦 Files Overview
+### CERAD Circle Scoring Criteria
+
+From the original CERAD protocol, the circle is worth 2 points out of 11 total:
+
+| Criterion | Points |
+|-----------|--------|
+| Closed within 1/8" | 1 |
+| Circular shape | 1 |
+| **Total for circle** | **2** |
+
+Other figures: Diamond (3 pts), Overlapping Rectangles (2 pts), Cube (4 pts).
+
+**CERAD scoring is binary for each criterion:**
+- **Closure:** Either closed within 1/8" (1 point) or not (0 points)
+- **Circularity:** Either "circular shape" (1 point) or not (0 points)
+
+The standard doesn't provide explicit guidance on how ovular is "too ovular" - it just says "circular shape." In practice:
+- Clearly round → 1 point
+- Noticeably elongated/ovular → 0 points
+
+**Mapping classifier output to CERAD scores:**
+
+| Shape | circularity label | CERAD points |
+|-------|-------------------|--------------|
+| Round circle | `circular` | 1 |
+| Oval/elongated | `not_circular` | 0 |
+| Irregular/wobbly | `not_circular` | 0 |
+
+| Closure | closure label | CERAD points |
+|---------|---------------|--------------|
+| Fully closed | `closed` | 1 |
+| Gap ≤ 1/8" | `closed` | 1 |
+| Gap > 1/8" | `not_closed` | 0 |
+
+Confidence scores can flag borderline cases for manual review.
+
+### CircleScore_v1.0 Performance
+
+**Dataset:**
+- Training set: 220 images
+- Test set: 57 images (held out, stratified by presence)
+
+**Test Set Accuracy:**
+
+| Dimension | Accuracy | Errors |
+|-----------|----------|--------|
+| Presence | 100.0% | 0/57 |
+| Closure | 98.2% | 1/57 |
+| Circularity | 82.5% | 10/57 |
+| **Average** | **93.6%** | |
+
+**Analysis:**
+- **Presence** and **closure** perform well, suitable for automated scoring
+- **Circularity** is the hardest dimension due to inherent subjectivity—even trained human raters may disagree on borderline cases where a shape is "slightly oval" vs "circular enough"
+- Most circularity errors are false positives (model predicts `circular` when actual is `not_circular`)
+- The model handles both standardized test images and real-world photographs containing reference circles (thick black printed circles shown to participants as examples). It learns to distinguish the drawn circle (thin pen strokes) from the reference
+
+**Next Steps:**
+1. Review misclassified circularity cases to identify labeling ambiguities vs true model errors
+2. Add more training examples of clearly oval/irregular shapes labeled `not_circular`
+3. Consider using probability thresholds to flag low-confidence predictions for manual review
+
+## Files Overview
 
 | File | Purpose |
 |------|---------|
-| `dinov2_multihead_classifier.py` | **Training script** — train your own model |
-| `circle_classifier.py` | **Inference module** — for catllm integration |
-| `check_training_setup.py` | **Setup checker** — verify your machine can train |
-| `example_labels.csv` | **Template** — for your training labels |
-| `requirements.txt` | **Dependencies** |
+| `dinov2_multihead_classifier.py` | Training and inference script |
+| `example_labels.csv` | Template for training labels |
+| `requirements.txt` | Python dependencies |
 
-## 🖥️ Platform Support
+## Platform Support
 
 Works on all platforms with automatic GPU detection:
 
@@ -34,7 +106,7 @@ Works on all platforms with automatic GPU detection:
 | Mac M1/M2/M3/M4 | MPS (Metal) | Fast |
 | Mac Intel / No GPU | CPU | Slower |
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Install Dependencies
 
@@ -42,118 +114,42 @@ Works on all platforms with automatic GPU detection:
 pip install -r requirements.txt
 ```
 
-### 2. Check Your Setup (Optional)
+### 2. Prepare Your Data
 
-```bash
-python check_training_setup.py
-```
-
-### 3. Prepare Your Data
-
-**Images:** Put all images in one folder (`./images/`)
-
-**Labels CSV:** Create `labels.csv` with this format:
+**Labels CSV format:**
 
 ```csv
 image,presence,closure,circularity
-drawing001.jpg,circle_clear,closed,circular
-drawing002.jpg,circle_clear,almost_closed,almost_circular
-drawing003.jpg,circle_resembles,almost_closed,circular
-drawing004.jpg,no_circle,,
+/path/to/drawing001.jpg,circle,closed,circular
+/path/to/drawing002.jpg,circle,closed,not_circular
+/path/to/drawing003.jpg,circle,not_closed,circular
+/path/to/drawing004.jpg,no_circle,,
 ```
 
 > Leave `closure` and `circularity` empty when `presence` is `no_circle`
 
-### 4. Train
+### 3. Train
 
 ```bash
 python dinov2_multihead_classifier.py \
     --mode train \
-    --image_dir ./images \
+    --image_dir . \
     --labels_csv ./labels.csv \
     --save_dir ./checkpoints \
     --batch_size 8
 ```
 
-### 5. Upload to HuggingFace (Optional)
+### 4. Inference
 
-```python
-from circle_classifier import upload_model_to_hub
-
-upload_model_to_hub(
-    model_path="./checkpoints/final_model.pt",
-    repo_id="your-username/circle-classifier",
-    token="hf_..."  # or run `huggingface-cli login` first
-)
+```bash
+python dinov2_multihead_classifier.py \
+    --mode inference \
+    --image_dir ./test_images \
+    --model_path ./checkpoints/final_model.pt \
+    --output_csv predictions.csv
 ```
 
-## 💻 Using the Trained Model
-
-### Option A: Local Inference (Default)
-
-Downloads model (~350 MB, cached) and runs on your machine:
-
-```python
-from catllm.circle_classifier import classify_circles
-
-# Auto-downloads from HuggingFace on first run
-results = classify_circles(images="./test_images")
-
-# Or use your local model
-results = classify_circles(
-    images="./test_images",
-    model="./checkpoints/final_model.pt"
-)
-```
-
-### Option B: Cloud Inference (HuggingFace API)
-
-No download needed—runs on HuggingFace servers:
-
-```python
-results = classify_circles(
-    images="./test_images",
-    use_api=True,
-    hf_token="hf_..."  # or set HF_TOKEN env var
-)
-```
-
-### Output Formats
-
-**DataFrame (default):**
-
-```python
-results = classify_circles(images="./test_images")
-results.to_csv("predictions.csv", index=False)
-```
-
-```
-image          | presence_clear | presence_resembles | presence_none | presence_pred | closure_closed | ...
-drawing001.jpg | 0.85           | 0.10               | 0.05          | circle_clear  | 0.90           | ...
-```
-
-**JSON:**
-
-```python
-results = classify_circles(
-    images="./test_images",
-    output_format="json",
-    output_path="predictions.json"
-)
-```
-
-```json
-[
-  {
-    "image": "drawing001.jpg",
-    "presence": {"clear": 0.85, "resembles": 0.10, "none": 0.05, "prediction": "circle_clear"},
-    "closure": {"closed": 0.90, "almost": 0.08, "na": 0.02, "prediction": "closed"},
-    "circularity": {"circular": 0.75, "almost": 0.21, "na": 0.04, "prediction": "circular"}
-  }
-]
-```
-
-## ⚙️ Configuration
+## Configuration
 
 ### Training Arguments
 
@@ -168,25 +164,22 @@ results = classify_circles(
 | `--ft_epochs` | `20` | LoRA fine-tuning epochs |
 | `--seed` | `42` | Random seed |
 
-### Inference Parameters
+### Inference Arguments
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `images` | (required) | Directory, file, or list of paths |
-| `model` | `"chrissoria/circle-classifier"` | HuggingFace ID or local path |
-| `output_format` | `"dataframe"` | `"dataframe"` or `"json"` |
-| `output_path` | `None` | Auto-save results |
-| `use_tta` | `True` | Test-time augmentation |
-| `device` | `None` (auto) | `"cuda"`, `"mps"`, `"cpu"` |
-| `use_api` | `False` | Use HuggingFace cloud API |
-| `hf_token` | `None` | Token for cloud API |
-| `silent` | `False` | Suppress messages |
+| Argument | Description |
+|----------|-------------|
+| `--model_path` | Path to trained model |
+| `--image_dir` | Directory of images to classify |
+| `--image_path` | Single image to classify |
+| `--output_csv` | Save results to CSV |
+| `--output_json` | Save results to JSON |
+| `--no_tta` | Disable test-time augmentation |
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────┐
-│           SINGLE .pt FILE (~350 MB)     │
+│      CircleScore_v1.0 (~330 MB)         │
 │                                         │
 │  ┌─────────────────────────────────┐   │
 │  │   DINOv2 ViT-B/14 Backbone      │   │
@@ -202,7 +195,7 @@ results = classify_circles(
 └─────────────────────────────────────────┘
 ```
 
-## 📈 Training Strategy (LP-FT)
+## Training Strategy (LP-FT)
 
 1. **Stage 1 - Linear Probing** (30 epochs)
    - Freeze DINOv2 backbone
@@ -214,31 +207,7 @@ results = classify_circles(
    - Train LoRA + heads
    - ~0.3% parameters trainable
 
-## ⚡ Local vs Cloud Mode
-
-| Feature | Local Mode | Cloud Mode (`use_api=True`) |
-|---------|------------|----------------------------|
-| First run | Downloads ~350MB | No download |
-| Subsequent runs | Uses cache | Sends to API |
-| GPU required | Recommended | No |
-| Works offline | Yes | No |
-| HF token needed | No | Yes |
-
-## 🔧 Working with Results
-
-```python
-# Flag uncertain predictions
-uncertain = results[results["presence_clear"] < 0.7]
-print(f"{len(uncertain)} images need review")
-
-# Custom threshold
-results["strict_pred"] = results.apply(
-    lambda r: "circle_clear" if r["presence_clear"] > 0.8 else "uncertain",
-    axis=1
-)
-```
-
-## 🐛 Troubleshooting
+## Troubleshooting
 
 **"MPS not available" on Mac:**
 ```bash
@@ -250,13 +219,26 @@ pip install --upgrade torch torchvision
 --batch_size 4  # Reduce batch size
 ```
 
-**Slow training (using CPU):**
-```bash
-python check_training_setup.py  # Verify GPU detection
-```
+## Future Work
 
-## 📚 References
+### Additional PraxisNet Models
+Extend to score the remaining CERAD figures:
+- **DiamondScore** - angles, symmetry, closure
+- **RectangleScore** - overlap accuracy, line quality
+- **CubeScore** - 3D representation, perspective
 
+### YOLO Pre-processing
+Use an object detection model (e.g., YOLOv11) as a pre-processor to:
+- Automatically detect and crop the drawing region from cluttered images
+- Handle photographs containing multiple drawings
+- Filter images where no drawing is detected
+- Provide more consistent input to the classifier
+
+This would add complexity (two-stage pipeline) but could improve accuracy on highly variable real-world images where drawings are small or partially obscured.
+
+## References
+
+- [CERAD Constructional Praxis](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2863549/)
 - [DINOv2: Learning Robust Visual Features](https://arxiv.org/abs/2304.07193)
 - [LoRA: Low-Rank Adaptation](https://arxiv.org/abs/2106.09685)
 - [LP-FT Strategy](https://arxiv.org/abs/2202.10054)

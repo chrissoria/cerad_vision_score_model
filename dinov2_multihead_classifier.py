@@ -58,28 +58,27 @@ from peft import LoraConfig, get_peft_model
 # Define the 3 classification dimensions with full descriptions
 DIMENSION_CONFIG = {
     "presence": {
-        "categories": ["circle_clear", "circle_resembles", "no_circle"],
+        "categories": ["circle", "no_circle"],
         "descriptions": {
-            "circle_clear": "The image contains a drawing that clearly represents a circle",
-            "circle_resembles": "The image contains a drawing that resembles a circle",
+            "circle": "The image contains a drawing that represents a circle",
             "no_circle": "The image does NOT contain any drawing that resembles a circle",
         },
         "na_allowed": False,  # Must always have a value
     },
     "closure": {
-        "categories": ["closed", "almost_closed", "na"],
+        "categories": ["closed", "not_closed", "na"],
         "descriptions": {
-            "closed": "The circle is closed",
-            "almost_closed": "The circle is almost closed",
+            "closed": "The circle is closed (gap ≤ 1/8 inch per CERAD criteria)",
+            "not_closed": "The circle is not closed (gap > 1/8 inch)",
             "na": "Not applicable (no circle present)",
         },
         "na_allowed": True,  # Can be N/A if no circle
     },
     "circularity": {
-        "categories": ["circular", "almost_circular", "na"],
+        "categories": ["circular", "not_circular", "na"],
         "descriptions": {
-            "circular": "The circle is circular",
-            "almost_circular": "The circle is almost circular",
+            "circular": "The circle has a circular shape",
+            "not_circular": "The circle is not circular (oval, irregular, etc.)",
             "na": "Not applicable (no circle present)",
         },
         "na_allowed": True,  # Can be N/A if no circle
