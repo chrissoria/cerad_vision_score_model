@@ -68,19 +68,20 @@ Confidence scores can flag borderline cases for manual review.
 - Training set: 220 images
 - Test set: 57 images (held out, stratified by presence)
 
-**Test Set Accuracy:**
+**Test Set Metrics:**
 
-| Dimension | Accuracy | Errors |
-|-----------|----------|--------|
-| Presence | 100.0% | 0/57 |
-| Closure | 98.2% | 1/57 |
-| Circularity | 82.5% | 10/57 |
-| **Average** | **93.6%** | |
+| Dimension | Precision | Recall | Specificity | F1 | n |
+|-----------|-----------|--------|-------------|-----|---|
+| Presence | 100% | 100% | 100% | 100% | 57 |
+| Closure | 97% | 100% | 75% | 99% | 37 |
+| Circularity | 74% | 92% | 33% | 82% | 37 |
+
+*Positive classes: presence=circle, closure=closed, circularity=circular. Closure and circularity exclude "na" cases (no circle present).*
 
 **Analysis:**
-- **Presence** and **closure** perform well, suitable for automated scoring
-- **Circularity** is the hardest dimension due to inherent subjectivity—even trained human raters may disagree on borderline cases where a shape is "slightly oval" vs "circular enough"
-- Most circularity errors are false positives (model predicts `circular` when actual is `not_circular`)
+- **Presence**: Perfect detection of whether a circle is present
+- **Closure**: High recall (catches all closed circles), lower specificity due to small sample of not_closed cases (n=4)
+- **Circularity**: High recall (92%) but low specificity (33%)—the model tends to be lenient, calling shapes "circular" when they may not be. This reflects the inherent subjectivity of this criterion; even trained human raters may disagree on borderline cases
 - The model handles both standardized test images and real-world photographs containing reference circles (thick black printed circles shown to participants as examples). It learns to distinguish the drawn circle (thin pen strokes) from the reference
 
 **Next Steps:**
