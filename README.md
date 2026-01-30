@@ -75,11 +75,11 @@ Confidence scores can flag borderline cases for manual review.
 
 **Test Set Metrics:**
 
-| Dimension | Precision | Recall | Specificity | F1 | n |
-|-----------|-----------|--------|-------------|-----|---|
-| Presence | 100% | 100% | 100% | 100% | 57 |
-| Closure | 94% | 100% | 50% | 97% | 37 |
-| Circularity | 93% | 96% | 82% | 94% | 37 |
+| Dimension | Accuracy | Precision | Recall | Specificity | F1 | n |
+|-----------|----------|-----------|--------|-------------|-----|---|
+| Presence | 100% | 100% | 100% | 100% | 100% | 57 |
+| Closure | 95% | 94% | 100% | 50% | 97% | 37 |
+| Circularity | 92% | 93% | 96% | 82% | 94% | 37 |
 
 *Positive classes: presence=circle, closure=closed, circularity=circular. Closure and circularity exclude "na" cases (no circle present).*
 
