@@ -2,7 +2,7 @@
 
 A multi-label image classification model family for scoring CERAD (Consortium to Establish a Registry for Alzheimer's Disease) constructional praxis drawings. Built on a DINOv2 ViT-B/14 backbone with task-specific classification heads.
 
-**Current Release:** CircleScore_v1.0
+**Current Release:** CircleScore_v2.0
 
 ## What This Does
 
@@ -14,15 +14,20 @@ The CERAD constructional praxis test asks participants to copy four geometric fi
 
 This model classifies photographs of these drawings, handling real-world conditions (varied lighting, backgrounds, hands in frame, multiple objects, etc.).
 
-### CircleScore_v1.0
+### CircleScore_v2.0
 
 Classifies circle drawings along three dimensions:
 
 | Dimension | Categories | Question |
 |-----------|------------|----------|
-| **Presence** | `circle`, `no_circle` | Is there a circle? |
+| **Presence** | `circle`, `no_circle`, `no_drawing` | Is there a circle? |
 | **Closure** | `closed`, `not_closed`, `na` | Is it closed? |
 | **Circularity** | `circular`, `not_circular`, `na` | Is it round? |
+
+The 3-class presence distinguishes between:
+- `circle` - A circle drawing is present
+- `no_circle` - A drawing is present but it's not a circle
+- `no_drawing` - No drawing present (blank page)
 
 **Architecture:** Single model (~330 MB) with 3 classification heads sharing a DINOv2 ViT-B/14 backbone.
 
@@ -62,10 +67,10 @@ The standard doesn't provide explicit guidance on how ovular is "too ovular" - i
 
 Confidence scores can flag borderline cases for manual review.
 
-### CircleScore_v1.0 Performance
+### CircleScore_v2.0 Performance
 
 **Dataset:**
-- Training set: 220 images
+- Training set: 289 images (deduplicated)
 - Test set: 57 images (held out, stratified by presence)
 
 **Test Set Metrics:**
@@ -73,21 +78,35 @@ Confidence scores can flag borderline cases for manual review.
 | Dimension | Precision | Recall | Specificity | F1 | n |
 |-----------|-----------|--------|-------------|-----|---|
 | Presence | 100% | 100% | 100% | 100% | 57 |
-| Closure | 97% | 100% | 75% | 99% | 37 |
-| Circularity | 74% | 92% | 33% | 82% | 37 |
+| Closure | 94% | 100% | 50% | 97% | 37 |
+| Circularity | 93% | 96% | 82% | 94% | 37 |
 
 *Positive classes: presence=circle, closure=closed, circularity=circular. Closure and circularity exclude "na" cases (no circle present).*
 
+**v1.1 → v2.0 Improvements:**
+
+Key changes in v2.0:
+- **3-class presence**: Now distinguishes `no_drawing` (blank pages) from `no_circle` (non-circle drawings)
+- **Expanded training data**: 289 deduplicated images with additional non-circle examples
+- **Uses closure/circularity labels for non-circle drawings**: Training includes shape characteristics of drawings that aren't circles
+
+| Metric | v1.1 | v2.0 | Change |
+|--------|------|------|--------|
+| Presence Precision | 97% | 100% | +3% |
+| Presence Specificity | 95% | 100% | +5% |
+| Circularity Specificity | 75% | 82% | +7% |
+| Circularity F1 | 91% | 94% | +3% |
+
 **Analysis:**
-- **Presence**: Perfect detection of whether a circle is present
-- **Closure**: High recall (catches all closed circles), lower specificity due to small sample of not_closed cases (n=4)
-- **Circularity**: High recall (92%) but low specificity (33%)—the model tends to be lenient, calling shapes "circular" when they may not be. This reflects the inherent subjectivity of this criterion; even trained human raters may disagree on borderline cases
-- The model handles both standardized test images and real-world photographs containing reference circles (thick black printed circles shown to participants as examples). It learns to distinguish the drawn circle (thin pen strokes) from the reference
+- **Presence**: Perfect detection with 3-class distinction (correctly identified 4 blank pages as `no_drawing` and 16 non-circle drawings as `no_circle`)
+- **Closure**: High recall (catches all closed circles); specificity limited by small sample of `not_closed` cases (n=4)
+- **Circularity**: Continued improvement in specificity (+7% from v1.1), now correctly identifies 82% of non-circular shapes
+- The model handles both standardized test images and real-world photographs containing reference circles
 
 **Next Steps:**
-1. Review misclassified circularity cases to identify labeling ambiguities vs true model errors
-2. Add more training examples of clearly oval/irregular shapes labeled `not_circular`
-3. Consider using probability thresholds to flag low-confidence predictions for manual review
+1. Continue adding minority class examples (`not_closed`, `not_circular`) to further improve specificity
+2. Consider using probability thresholds to flag low-confidence predictions for manual review
+3. Extend to other CERAD figures (diamond, rectangles, cube)
 
 ## Files Overview
 
@@ -124,10 +143,12 @@ image,presence,closure,circularity
 /path/to/drawing001.jpg,circle,closed,circular
 /path/to/drawing002.jpg,circle,closed,not_circular
 /path/to/drawing003.jpg,circle,not_closed,circular
-/path/to/drawing004.jpg,no_circle,,
+/path/to/drawing004.jpg,no_circle,closed,not_circular
+/path/to/drawing005.jpg,no_drawing,,
 ```
 
-> Leave `closure` and `circularity` empty when `presence` is `no_circle`
+> For `no_circle` (non-circle drawings), you can optionally include closure/circularity labels.
+> Leave `closure` and `circularity` empty for `no_drawing` (blank pages).
 
 ### 3. Train
 
@@ -180,7 +201,7 @@ python dinov2_multihead_classifier.py \
 
 ```
 ┌─────────────────────────────────────────┐
-│      CircleScore_v1.0 (~330 MB)         │
+│      CircleScore_v2.0 (~330 MB)         │
 │                                         │
 │  ┌─────────────────────────────────┐   │
 │  │   DINOv2 ViT-B/14 Backbone      │   │

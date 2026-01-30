@@ -1,5 +1,9 @@
 # Model checkpoints (stored on HuggingFace)
 checkpoints/
+checkpoints_*/
+
+# Paper drafts (private)
+papers/
 
 # Python
 __pycache__/

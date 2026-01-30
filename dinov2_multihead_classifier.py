@@ -58,10 +58,11 @@ from peft import LoraConfig, get_peft_model
 # Define the 3 classification dimensions with full descriptions
 DIMENSION_CONFIG = {
     "presence": {
-        "categories": ["circle", "no_circle"],
+        "categories": ["circle", "no_circle", "no_drawing"],
         "descriptions": {
             "circle": "The image contains a drawing that represents a circle",
-            "no_circle": "The image does NOT contain any drawing that resembles a circle",
+            "no_circle": "The image contains a drawing but it is NOT a circle",
+            "no_drawing": "The image does NOT contain any drawing",
         },
         "na_allowed": False,  # Must always have a value
     },
@@ -118,17 +119,19 @@ def set_seed(seed: int = 42):
 
 class MultiLabelDrawingDataset(Dataset):
     """Dataset for multi-label circle drawing classification."""
-    
+
     def __init__(
         self,
         image_dir: str,
         labels_df: pd.DataFrame,
         transform: transforms.Compose,
         dimension_config: Dict = DIMENSION_CONFIG,
+        use_non_circle_labels: bool = False,
     ):
         self.image_dir = Path(image_dir)
         self.transform = transform
         self.dimension_config = dimension_config
+        self.use_non_circle_labels = use_non_circle_labels
         
         # Filter to only images that exist
         self.labels_df = labels_df.copy()
@@ -152,27 +155,36 @@ class MultiLabelDrawingDataset(Dataset):
     
     def __getitem__(self, idx):
         row = self.labels_df.iloc[idx]
-        
+
         # Load and transform image
         image_path = self.image_dir / row["image"]
         image = Image.open(image_path).convert("RGB")
         image = self.transform(image)
-        
+
+        # Check if this is a non-circle image
+        presence_value = row.get("presence", "")
+        is_non_circle = presence_value == "no_circle"
+
         # Get labels for each dimension
         labels = {}
         for dim in self.dimension_config.keys():
             value = row.get(dim, "")
+
+            # If non-circle and we're not using non-circle labels, force NA for closure/circularity
+            if is_non_circle and not self.use_non_circle_labels and dim in ["closure", "circularity"]:
+                value = "na"
             # Handle empty/NaN values as "na" for dimensions that allow it
-            if pd.isna(value) or value == "" or value is None:
+            elif pd.isna(value) or value == "" or value is None:
                 if self.dimension_config[dim]["na_allowed"]:
                     value = "na"
                 else:
                     raise ValueError(f"Dimension '{dim}' requires a value for image {row['image']}")
+
             labels[dim] = self.cat_to_idx[dim][value]
-        
+
         # Stack labels into tensor
         label_tensor = torch.tensor([labels[dim] for dim in self.dimension_config.keys()])
-        
+
         return image, label_tensor
     
     def get_num_classes(self) -> Dict[str, int]:
@@ -859,6 +871,7 @@ def run_lpft_training(
     label_smoothing: float = 0.1,
     patience: int = 10,
     seed: int = 42,
+    use_non_circle_labels: bool = False,
 ):
     """
     Run the full LP-FT training pipeline.
@@ -874,7 +887,8 @@ def run_lpft_training(
     
     device = get_device()
     print(f"Using device: {device}")
-    
+    print(f"Use non-circle labels for closure/circularity: {use_non_circle_labels}")
+
     # Load labels
     labels_df = pd.read_csv(labels_csv)
     print(f"Loaded {len(labels_df)} labeled images")
@@ -896,8 +910,10 @@ def run_lpft_training(
     print(f"Validation samples: {len(val_df)}")
     
     # Create datasets
-    train_dataset = MultiLabelDrawingDataset(image_dir, train_df, get_train_transforms())
-    val_dataset = MultiLabelDrawingDataset(image_dir, val_df, get_val_transforms())
+    train_dataset = MultiLabelDrawingDataset(image_dir, train_df, get_train_transforms(),
+                                              use_non_circle_labels=use_non_circle_labels)
+    val_dataset = MultiLabelDrawingDataset(image_dir, val_df, get_val_transforms(),
+                                            use_non_circle_labels=use_non_circle_labels)
     
     # Print class distribution
     print("\nClass distribution (training):")
@@ -1048,6 +1064,8 @@ Examples:
     parser.add_argument("--ft_epochs", type=int, default=20)
     parser.add_argument("--val_split", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--use_non_circle_labels", action="store_true",
+                        help="Use closure/circularity labels for non-circle images (default: ignore them, treat as NA)")
     
     # Inference args
     parser.add_argument("--model_path", type=str)
@@ -1071,6 +1089,7 @@ Examples:
             ft_epochs=args.ft_epochs,
             val_split=args.val_split,
             seed=args.seed,
+            use_non_circle_labels=args.use_non_circle_labels,
         )
     
     elif args.mode == "inference":
