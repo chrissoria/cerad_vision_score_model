@@ -1,6 +1,9 @@
 # Model checkpoints (large files, stored separately)
 **/checkpoints/
 
+# Claude Code instructions (local only)
+CLAUDE.md
+
 # Paper drafts (private)
 papers/
 
