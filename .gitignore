@@ -1,6 +1,5 @@
-# Model checkpoints (stored on HuggingFace)
-checkpoints/
-checkpoints_*/
+# Model checkpoints (large files, stored separately)
+**/checkpoints/
 
 # Paper drafts (private)
 papers/
