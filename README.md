@@ -8,7 +8,7 @@ The CERAD constructional praxis test asks participants to copy four geometric fi
 - **Circle** - [CircleScore v2.0](./circle/README.md) ✓
 - **Diamond** - (future)
 - **Overlapping Rectangles** - (future)
-- **Cube** - [CubeScore](./cube/README.md) (in development)
+- **Cube** - [CubeScore v1.0](./cube/README.md) ✓
 
 This project classifies photographs of these drawings, handling real-world conditions (varied lighting, backgrounds, hands in frame, multiple objects, etc.).
 
@@ -48,8 +48,13 @@ cerad_scoring_model/
 │   └── checkpoints/                 # Model weights (not in git)
 ├── diamond/                         # (future)
 ├── rectangles/                      # (future)
-├── cube/                            # (future)
-├── dinov2_multihead_classifier.py   # Shared training/inference code
+├── cube/                            # Cube scoring model
+│   ├── README.md                    # Cube-specific docs & metrics
+│   ├── train_data.csv
+│   ├── test_data.csv
+│   └── checkpoints/                 # Model weights (not in git)
+├── dinov2_multihead_classifier.py   # Circle training/inference code
+├── dinov2_cube_classifier.py        # Cube training/inference code
 ├── requirements.txt                 # Python dependencies
 └── README.md
 ```

@@ -2,7 +2,7 @@
 
 Multi-label classifier for CERAD cube drawings. Part of the PraxisNet model family.
 
-**Current Release:** v1.0 (in development)
+**Current Release:** v1.0
 
 ## What This Does
 
@@ -180,6 +180,34 @@ This drawing demonstrates all four criteria for a complete cube.
 | parallel_sides | yes | Opposite edges are parallel within tolerance |
 
 **Total CERAD-style score:** 4/4
+
+## v1.0 Performance
+
+**Dataset:**
+- Training set: 120 images
+- Test set: 30 images (held out, stratified by cube presence)
+
+**Test Set Metrics:**
+
+| Dimension | Accuracy | Correct/Total |
+|-----------|----------|---------------|
+| drawing_presence | 96.7% | 29/30 |
+| cube | 90.0% | 27/30 |
+| three_dimensions | 86.7% | 26/30 |
+| front_correct | 66.7% | 20/30 |
+| connecting_lines_3d | 76.7% | 23/30 |
+| paralell_sides | 80.0% | 24/30 |
+| **Average** | **82.8%** | |
+
+**Analysis:**
+- **Strong:** Drawing presence (96.7%) and cube detection (90.0%) perform well
+- **Good:** Three dimensions (86.7%) and parallel sides (80.0%) are reliable
+- **Weaker:** Front correct (66.7%) and connecting lines (76.7%) have room for improvement—these criteria involve more subjective edge cases
+
+**Next Steps:**
+1. Add more training examples, especially for edge cases (partial cubes, ambiguous front faces)
+2. Consider adjusting labeling criteria for front_correct to reduce ambiguity
+3. Evaluate inter-rater reliability on difficult cases
 
 ## Classification Dimensions
 

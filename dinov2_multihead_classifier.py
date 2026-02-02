@@ -706,150 +706,6 @@ def classify(
     return df
 
 
-def classify_to_json(
-    input_data: Union[str, List[str], Path],
-    model_path: str,
-    output_path: Optional[str] = None,
-    use_tta: bool = True,
-    device: Optional[torch.device] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Classify images and return results as nested JSON structure.
-    
-    Args:
-        input_data: Directory path, list of image paths, or single image path
-        model_path: Path to trained model checkpoint
-        output_path: If provided, save JSON to this file
-        use_tta: Whether to use test-time augmentation
-        device: Torch device (auto-detected if None)
-    
-    Returns:
-        List of dicts with structure:
-        [
-            {
-                "image": "drawing001.jpg",
-                "presence": {"clear": 0.85, "resembles": 0.10, "none": 0.05, "prediction": "circle_clear"},
-                "closure": {"closed": 0.90, "almost": 0.08, "na": 0.02, "prediction": "closed"},
-                "circularity": {"circular": 0.75, "almost": 0.21, "na": 0.04, "prediction": "circular"}
-            },
-            ...
-        ]
-    """
-    if device is None:
-        device = get_device()
-    
-    # Load model
-    model, metadata = load_trained_model(model_path, device)
-    
-    # Collect image paths
-    image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".gif", ".tiff"}
-    
-    if isinstance(input_data, (str, Path)):
-        input_path = Path(input_data)
-        if input_path.is_dir():
-            image_paths = sorted([p for p in input_path.iterdir() if p.suffix.lower() in image_extensions])
-        elif input_path.is_file():
-            image_paths = [input_path]
-        else:
-            raise ValueError(f"Path does not exist: {input_data}")
-    elif isinstance(input_data, list):
-        image_paths = [Path(p) for p in input_data]
-    else:
-        raise ValueError(f"input_data must be a path or list of paths")
-    
-    # Short key mapping for JSON
-    SHORT_KEYS = {
-        "presence": {
-            "circle_clear": "clear",
-            "circle_resembles": "resembles",
-            "no_circle": "none",
-        },
-        "closure": {
-            "closed": "closed",
-            "almost_closed": "almost",
-            "na": "na",
-        },
-        "circularity": {
-            "circular": "circular",
-            "almost_circular": "almost",
-            "na": "na",
-        },
-    }
-    
-    # Classify each image
-    results = []
-    for image_path in tqdm(image_paths, desc="Classifying"):
-        preds = predict_single(model, str(image_path), device, use_tta)
-        
-        record = {"image": image_path.name}
-        
-        for dim, probs in preds.items():
-            dim_result = {}
-            
-            # Add probabilities with short keys
-            for cat, prob in probs.items():
-                short_key = SHORT_KEYS[dim].get(cat, cat)
-                dim_result[short_key] = round(prob, 4)
-            
-            # Add prediction
-            best_cat = max(probs, key=probs.get)
-            dim_result["prediction"] = best_cat
-            
-            record[dim] = dim_result
-        
-        results.append(record)
-    
-    # Save to file if path provided
-    if output_path:
-        with open(output_path, "w") as f:
-            json.dump(results, f, indent=2)
-        print(f"Results saved to: {output_path}")
-    
-    return results
-
-
-def results_to_json(df: pd.DataFrame, output_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Convert a classify() DataFrame result to nested JSON structure.
-    
-    Args:
-        df: DataFrame from classify()
-        output_path: If provided, save JSON to this file
-    
-    Returns:
-        Nested JSON structure
-    """
-    results = []
-    
-    for _, row in df.iterrows():
-        record = {"image": row["image"]}
-        
-        for dim in ["presence", "closure", "circularity"]:
-            dim_result = {}
-            
-            # Extract probabilities
-            for col in df.columns:
-                if col.startswith(f"{dim}_") and not col.endswith("_pred"):
-                    short_name = col.replace(f"{dim}_", "")
-                    dim_result[short_name] = row[col]
-            
-            # Extract prediction
-            pred_col = f"{dim}_pred"
-            if pred_col in df.columns:
-                dim_result["prediction"] = row[pred_col]
-            
-            record[dim] = dim_result
-        
-        results.append(record)
-    
-    if output_path:
-        with open(output_path, "w") as f:
-            json.dump(results, f, indent=2)
-        print(f"Results saved to: {output_path}")
-    
-    return results
-
-
 # =============================================================================
 # MAIN TRAINING PIPELINE
 # =============================================================================
@@ -1071,7 +927,6 @@ Examples:
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--image_path", type=str)
     parser.add_argument("--output_csv", type=str, default=None, help="Output CSV path")
-    parser.add_argument("--output_json", type=str, default=None, help="Output JSON path")
     parser.add_argument("--no_tta", action="store_true")
     
     args = parser.parse_args()
@@ -1107,17 +962,11 @@ Examples:
             use_tta=not args.no_tta,
         )
         
-        # Save CSV if requested
+        # Save CSV
         if args.output_csv:
             results_df.to_csv(args.output_csv, index=False)
             print(f"CSV saved to: {args.output_csv}")
-        
-        # Save JSON if requested
-        if args.output_json:
-            results_json = results_to_json(results_df, args.output_json)
-        
-        # Default: save CSV if no output specified
-        if not args.output_csv and not args.output_json:
+        else:
             default_csv = "predictions.csv"
             results_df.to_csv(default_csv, index=False)
             print(f"CSV saved to: {default_csv}")
