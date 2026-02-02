@@ -8,9 +8,32 @@ The CERAD constructional praxis test asks participants to copy four geometric fi
 - **Circle** - [CircleScore v2.0](./circle/README.md) ✓
 - **Diamond** - (future)
 - **Overlapping Rectangles** - (future)
-- **Cube** - (future)
+- **Cube** - [CubeScore](./cube/README.md) (in development)
 
 This project classifies photographs of these drawings, handling real-world conditions (varied lighting, backgrounds, hands in frame, multiple objects, etc.).
+
+## CERAD Scoring
+
+The CERAD Constructional Praxis subtest consists of four figures presented sequentially for copying: a circle (2 points), a diamond/rhombus (3 points), overlapping rectangles (2 points), and a three-dimensional cube (4 points), totaling a maximum score of 11 points. The cube represents the final and most challenging figure, requiring integration of multiple cognitive processes including spatial reasoning, executive function, and visuoconstructional ability.
+
+| Figure | Points |
+|--------|--------|
+| Circle | 2 |
+| Diamond/Rhombus | 3 |
+| Overlapping Rectangles | 2 |
+| Cube | 4 |
+| **Total** | **11** |
+
+The task is administered in two phases: an immediate copy condition where participants copy the figures while viewing the model, and a delayed recall condition (typically 2-2.5 minutes later) where participants draw the figures from memory without the model present. Both phases use identical scoring criteria.
+
+These models are designed to score both phases. They are trained to ignore reference images, handle multiple drawings on the same page, and tolerate non-relevant background elements in photographs.
+
+**General scoring principles:**
+- Each criterion is scored independently as present (1) or absent (0)
+- No partial credit—each criterion is binary
+- Wobbly or shaky lines due to motor tremor should not affect scoring if the overall structure is correct
+- The absolute size of the drawing is not relevant as long as structural criteria are met
+- If there is doubt about whether a criterion is met, consensus from multiple trained scorers should be sought
 
 Each figure has its own model with shape-specific classification heads. See individual shape directories for detailed metrics and usage.
 

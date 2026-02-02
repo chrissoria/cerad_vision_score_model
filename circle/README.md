@@ -55,7 +55,7 @@ The standard doesn't provide explicit guidance on how ovular is "too ovular" - i
 | Gap ≤ 1/8" | `closed` | 1 |
 | Gap > 1/8" | `not_closed` | 0 |
 
-Confidence scores can flag borderline cases for manual review.
+**Note:** Given that photographs of drawings vary in resolution, lighting, and angle, determining whether a gap exceeds 1/8" can be a semi-subjective call. Confidence scores can flag borderline cases for manual review.
 
 ## v2.0 Performance
 
