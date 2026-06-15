@@ -17,19 +17,20 @@ Operationally, a passing drawing should contain two recognizable five-sided figu
 
 ## Training Score And Final Score
 
-Training score range: `0-2`.
+Training score range: `0-3`.
 
-Use two intermediate checks during labeling/training:
+Use three intermediate checks during labeling/training:
 
-- `+1`: two pentagons are present and overlapping (`two_pents=two_pents` and `overlapping=overlapping`)
+- `+1`: two pentagons are present (`two_pents=two_pents`)
+- `+1`: the two pentagons overlap (`overlapping=overlapping`)
 - `+1`: the overlap/crossing region creates a four-sided figure (`center_four=center_four`)
 
 After prediction, collapse to a final binary score range of `0-1`:
 
-- training score `2` -> final score `1`
-- training score `0` or `1` -> final score `0`
+- training score `3` -> final score `1`
+- training score `0`, `1`, or `2` -> final score `0`
 
-The model heads are intermediate features for auditability and for deriving the `0-2` training score.
+The model heads are intermediate features for auditability and for deriving the `0-3` training score.
 
 ## Reference Stimulus
 

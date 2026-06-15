@@ -48,15 +48,13 @@ PENTAGON_DIMENSION_CONFIG = {
 
 
 def add_score_columns(results_df):
-    """Add derived 0-2 training score and collapsed 0-1 final score."""
-    point_two_overlapping = (
-        results_df["two_pents_pred"].eq("two_pents")
-        & results_df["overlapping_pred"].eq("overlapping")
-    ).astype(int)
+    """Add derived 0-3 training score and collapsed 0-1 final score."""
+    point_two_pents = results_df["two_pents_pred"].eq("two_pents").astype(int)
+    point_overlapping = results_df["overlapping_pred"].eq("overlapping").astype(int)
     point_center_four = results_df["center_four_pred"].eq("center_four").astype(int)
 
-    results_df["training_score_pred"] = point_two_overlapping + point_center_four
-    results_df["final_score_pred"] = results_df["training_score_pred"].eq(2).astype(int)
+    results_df["training_score_pred"] = point_two_pents + point_overlapping + point_center_four
+    results_df["final_score_pred"] = results_df["training_score_pred"].eq(3).astype(int)
     return results_df
 
 
