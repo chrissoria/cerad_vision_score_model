@@ -10,6 +10,8 @@ The CERAD constructional praxis test asks participants to copy four geometric fi
 - **Overlapping Rectangles** - (future)
 - **Cube** - [CubeScore v1.0](./cube/README.md) ✓
 
+An experimental non-CERAD starter is also available for an **overlapping pentagons copy task**: [PentagonScore starter](./pentagon/README.md).
+
 This project classifies photographs of these drawings, handling real-world conditions (varied lighting, backgrounds, hands in frame, multiple objects, etc.).
 
 ## CERAD Scoring
@@ -53,8 +55,14 @@ cerad_scoring_model/
 │   ├── train_data.csv
 │   ├── test_data.csv
 │   └── checkpoints/                 # Model weights (not in git)
+├── pentagon/                        # Overlapping pentagons starter
+│   ├── README.md                    # Pentagon label schema & checklist
+│   ├── pentagon_labels_with_dropdowns.xlsx # Annotation workbook
+│   ├── train_data.csv
+│   └── test_data.csv
 ├── dinov2_multihead_classifier.py   # Circle training/inference code
 ├── dinov2_cube_classifier.py        # Cube training/inference code
+├── dinov2_pentagon_classifier.py    # Pentagon starter wrapper
 ├── requirements.txt                 # Python dependencies
 └── README.md
 ```
